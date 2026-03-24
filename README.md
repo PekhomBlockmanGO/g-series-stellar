@@ -3,7 +3,8 @@
 ## Project Description
 The **Soroban Supply Chain Tracker** is a decentralized application built on the Stellar network using the Soroban smart contract platform. It provides an immutable, transparent, and highly efficient way to record the lifecycle of physical goods as they move from production to the end consumer. By leveraging blockchain technology, this project ensures that all stakeholders have access to a single source of truth regarding an item's current state.
 
-![Uploading image.png…]()
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/eec1eeb9-82d7-4143-a3ac-ea28d921fe81" />
+
 
 
 ## What it does
