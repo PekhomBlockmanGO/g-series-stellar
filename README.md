@@ -5,6 +5,9 @@ The **Soroban Supply Chain Tracker** is a decentralized application built on the
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/eec1eeb9-82d7-4143-a3ac-ea28d921fe81" />
 
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/278b3cbe-847a-4463-96ab-9579680a0bdf" />
+
+
 
 
 ## What it does
@@ -21,6 +24,8 @@ This smart contract acts as an on-chain ledger for physical items. When a produc
 
 ## Deployed Smart Contract Link
 https://stellar.expert/explorer/testnet/contract/CANLGQ2SKX7EIS55U7IUFYQDP7CLT4HYNOOA5WHTFNFLUZNX75BXYHYD
+
+
 
 ---
 *Built with Rust and Soroban on the Stellar Network.*
