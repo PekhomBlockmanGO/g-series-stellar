@@ -26,7 +26,7 @@ import {
 
 /** Your deployed Soroban contract ID */
 export const CONTRACT_ADDRESS =
-  "CDJVMAX34YRCQ5JFC6SIOQOVSUY6XWEFYJOLF3SBCKU7CMI3IAP6HPWN";
+  "CA47AYSNZACWF36VXX45IMK764CWKTRMVMNYZPXDHQVUZTOWADPQNUXC";
 
 /** Network passphrase (testnet by default) */
 export const NETWORK_PASSPHRASE = Networks.TESTNET;
@@ -212,55 +212,62 @@ export function toScValBool(value: boolean): xdr.ScVal {
 }
 
 // ============================================================
-// Supply Chain Tracker — Contract Methods
+// Item Tracker — Contract Methods
 // ============================================================
 
+/** Valid item statuses matching the contract's ItemStatus enum */
+export type ItemStatus = "Manufactured" | "InTransit" | "Delivered";
+
+function toScValEnumVariant(variant: string): xdr.ScVal {
+  return nativeToScVal(variant, { type: "symbol" });
+}
+
 /**
- * Add a product to the supply chain.
- * Calls: add_product(product_id: String, origin: String)
+ * Create a new item on-chain.
+ * Calls: create_item(id: u32, name: String)
  */
-export async function addProduct(
+export async function createItem(
   caller: string,
-  productId: string,
-  origin: string
+  id: number,
+  name: string
 ) {
   return callContract(
-    "add_product",
-    [toScValString(productId), toScValString(origin)],
+    "create_item",
+    [toScValU32(id), toScValString(name)],
     caller,
     true
   );
 }
 
 /**
- * Update a product's status.
- * Calls: update_status(product_id: String, new_status: String)
+ * Update an item's status.
+ * Calls: update_status(id: u32, new_status: ItemStatus)
  */
-export async function updateProductStatus(
+export async function updateItemStatus(
   caller: string,
-  productId: string,
-  newStatus: string
+  id: number,
+  newStatus: ItemStatus
 ) {
   return callContract(
     "update_status",
-    [toScValString(productId), toScValString(newStatus)],
+    [toScValU32(id), toScValEnumVariant(newStatus)],
     caller,
     true
   );
 }
 
 /**
- * Get product details (read-only).
- * Calls: get_product(product_id: String) -> Map<Symbol, String>
- * Returns: { origin: string, status: string } or null
+ * Get item details (read-only).
+ * Calls: get_item(id: u32) -> Option<Item>
+ * Returns: { name: string, status: string } or null
  */
-export async function getProduct(
-  productId: string,
+export async function getItem(
+  id: number,
   caller?: string
 ) {
   return readContract(
-    "get_product",
-    [toScValString(productId)],
+    "get_item",
+    [toScValU32(id)],
     caller
   );
 }

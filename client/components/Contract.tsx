@@ -2,10 +2,11 @@
 
 import { useState, useCallback } from "react";
 import {
-  addProduct,
-  updateProductStatus,
-  getProduct,
+  createItem,
+  updateItemStatus,
+  getItem,
   CONTRACT_ADDRESS,
+  type ItemStatus,
 } from "@/hooks/contract";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { Spotlight } from "@/components/ui/spotlight";
@@ -121,8 +122,8 @@ function MethodSignature({
 // ── Status Config ────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; dot: string; variant: "success" | "warning" | "info" }> = {
-  Created: { color: "text-[#fbbf24]", bg: "bg-[#fbbf24]/10", border: "border-[#fbbf24]/20", dot: "bg-[#fbbf24]", variant: "warning" },
-  Shipped: { color: "text-[#4fc3f7]", bg: "bg-[#4fc3f7]/10", border: "border-[#4fc3f7]/20", dot: "bg-[#4fc3f7]", variant: "info" },
+  Manufactured: { color: "text-[#fbbf24]", bg: "bg-[#fbbf24]/10", border: "border-[#fbbf24]/20", dot: "bg-[#fbbf24]", variant: "warning" },
+  InTransit: { color: "text-[#4fc3f7]", bg: "bg-[#4fc3f7]/10", border: "border-[#4fc3f7]/20", dot: "bg-[#4fc3f7]", variant: "info" },
   Delivered: { color: "text-[#34d399]", bg: "bg-[#34d399]/10", border: "border-[#34d399]/20", dot: "bg-[#34d399]", variant: "success" },
 };
 
@@ -142,30 +143,32 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
   const [txStatus, setTxStatus] = useState<string | null>(null);
 
   const [addId, setAddId] = useState("");
-  const [addOrigin, setAddOrigin] = useState("");
+  const [addName, setAddName] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
   const [updateId, setUpdateId] = useState("");
-  const [updateStatusVal, setUpdateStatusVal] = useState("");
+  const [updateStatusVal, setUpdateStatusVal] = useState<ItemStatus | "">("");
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [trackId, setTrackId] = useState("");
   const [isTracking, setIsTracking] = useState(false);
-  const [productData, setProductData] = useState<Record<string, string> | null>(null);
+  const [itemData, setItemData] = useState<Record<string, string> | null>(null);
 
   const truncate = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   const handleAddProduct = useCallback(async () => {
     if (!walletAddress) return setError("Connect wallet first");
-    if (!addId.trim() || !addOrigin.trim()) return setError("Fill in all fields");
+    const numId = parseInt(addId.trim(), 10);
+    if (isNaN(numId) || numId < 0) return setError("ID must be a positive number");
+    if (!addName.trim()) return setError("Enter a product name");
     setError(null);
     setIsAdding(true);
     setTxStatus("Awaiting signature...");
     try {
-      await addProduct(walletAddress, addId.trim(), addOrigin.trim());
-      setTxStatus("Product registered on-chain!");
+      await createItem(walletAddress, numId, addName.trim());
+      setTxStatus("Item registered on-chain!");
       setAddId("");
-      setAddOrigin("");
+      setAddName("");
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Transaction failed");
@@ -173,16 +176,18 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
     } finally {
       setIsAdding(false);
     }
-  }, [walletAddress, addId, addOrigin]);
+  }, [walletAddress, addId, addName]);
 
   const handleUpdateStatus = useCallback(async () => {
     if (!walletAddress) return setError("Connect wallet first");
-    if (!updateId.trim() || !updateStatusVal.trim()) return setError("Fill in all fields");
+    const numId = parseInt(updateId.trim(), 10);
+    if (isNaN(numId) || numId < 0) return setError("ID must be a positive number");
+    if (!updateStatusVal) return setError("Select a status");
     setError(null);
     setIsUpdating(true);
     setTxStatus("Awaiting signature...");
     try {
-      await updateProductStatus(walletAddress, updateId.trim(), updateStatusVal.trim());
+      await updateItemStatus(walletAddress, numId, updateStatusVal as ItemStatus);
       setTxStatus("Status updated on-chain!");
       setUpdateId("");
       setUpdateStatusVal("");
@@ -196,20 +201,21 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
   }, [walletAddress, updateId, updateStatusVal]);
 
   const handleTrackProduct = useCallback(async () => {
-    if (!trackId.trim()) return setError("Enter a product ID");
+    const numId = parseInt(trackId.trim(), 10);
+    if (isNaN(numId) || numId < 0) return setError("Enter a valid numeric item ID");
     setError(null);
     setIsTracking(true);
-    setProductData(null);
+    setItemData(null);
     try {
-      const result = await getProduct(trackId.trim(), walletAddress || undefined);
+      const result = await getItem(numId, walletAddress || undefined);
       if (result && typeof result === "object") {
         const mapped: Record<string, string> = {};
         for (const [k, v] of Object.entries(result)) {
           mapped[String(k)] = String(v);
         }
-        setProductData(mapped);
+        setItemData(mapped);
       } else {
-        setError("Product not found");
+        setError("Item not found");
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Query failed");
@@ -263,7 +269,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-white/90">Supply Chain Tracker</h3>
+                <h3 className="text-sm font-semibold text-white/90">Item Tracker</h3>
                 <p className="text-[10px] text-white/25 font-mono mt-0.5">{truncate(CONTRACT_ADDRESS)}</p>
               </div>
             </div>
@@ -275,7 +281,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
             {tabs.map((t) => (
               <button
                 key={t.key}
-                onClick={() => { setActiveTab(t.key); setError(null); setProductData(null); }}
+                onClick={() => { setActiveTab(t.key); setError(null); setItemData(null); }}
                 className={cn(
                   "relative flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-all",
                   activeTab === t.key ? "text-white/90" : "text-white/35 hover:text-white/55"
@@ -298,18 +304,18 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
             {/* Track */}
             {activeTab === "track" && (
               <div className="space-y-5">
-                <MethodSignature name="get_product" params="(product_id: String)" returns="-> Map<Symbol, String>" color="#4fc3f7" />
-                <Input label="Product ID" value={trackId} onChange={(e) => setTrackId(e.target.value)} placeholder="e.g. PROD-001" />
+                <MethodSignature name="get_item" params="(id: u32)" returns="-> Option<Item>" color="#4fc3f7" />
+                <Input label="Item ID (number)" value={trackId} onChange={(e) => setTrackId(e.target.value)} placeholder="e.g. 1" type="number" />
                 <ShimmerButton onClick={handleTrackProduct} disabled={isTracking} shimmerColor="#4fc3f7" className="w-full">
-                  {isTracking ? <><SpinnerIcon /> Querying...</> : <><SearchIcon /> Track Product</>}
+                  {isTracking ? <><SpinnerIcon /> Querying...</> : <><SearchIcon /> Track Item</>}
                 </ShimmerButton>
 
-                {productData && (
+                {itemData && (
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden animate-fade-in-up">
                     <div className="border-b border-white/[0.06] px-4 py-3 flex items-center justify-between">
-                      <span className="text-[10px] font-medium uppercase tracking-wider text-white/25">Product Details</span>
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-white/25">Item Details</span>
                       {(() => {
-                        const status = productData.status || "Unknown";
+                        const status = itemData.status || "Unknown";
                         const cfg = STATUS_CONFIG[status];
                         return cfg ? (
                           <Badge variant={cfg.variant}>
@@ -323,15 +329,21 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
                     </div>
                     <div className="p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-white/35">Product ID</span>
+                        <span className="text-xs text-white/35">Item ID</span>
                         <span className="font-mono text-sm text-white/80">{trackId}</span>
                       </div>
-                      {Object.entries(productData).map(([key, val]) => (
-                        <div key={key} className="flex items-center justify-between">
-                          <span className="text-xs text-white/35 capitalize">{key}</span>
-                          <span className="font-mono text-sm text-white/80">{val}</span>
+                      {itemData.name && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/35">Name</span>
+                          <span className="font-mono text-sm text-white/80">{itemData.name}</span>
                         </div>
-                      ))}
+                      )}
+                      {itemData.status && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/35">Status</span>
+                          <span className="font-mono text-sm text-white/80">{itemData.status}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -341,12 +353,12 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
             {/* Add */}
             {activeTab === "add" && (
               <div className="space-y-5">
-                <MethodSignature name="add_product" params="(product_id: String, origin: String)" color="#7c6cf0" />
-                <Input label="Product ID" value={addId} onChange={(e) => setAddId(e.target.value)} placeholder="e.g. PROD-001" />
-                <Input label="Origin" value={addOrigin} onChange={(e) => setAddOrigin(e.target.value)} placeholder="e.g. Factory A, Shanghai" />
+                <MethodSignature name="create_item" params="(id: u32, name: String)" color="#7c6cf0" />
+                <Input label="Item ID (number)" value={addId} onChange={(e) => setAddId(e.target.value)} placeholder="e.g. 1" type="number" />
+                <Input label="Item Name" value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. Widget Batch A" />
                 {walletAddress ? (
                   <ShimmerButton onClick={handleAddProduct} disabled={isAdding} shimmerColor="#7c6cf0" className="w-full">
-                    {isAdding ? <><SpinnerIcon /> Registering...</> : <><PackageIcon /> Register Product</>}
+                    {isAdding ? <><SpinnerIcon /> Registering...</> : <><PackageIcon /> Register Item</>}
                   </ShimmerButton>
                 ) : (
                   <button
@@ -354,7 +366,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
                     disabled={isConnecting}
                     className="w-full rounded-xl border border-dashed border-[#7c6cf0]/20 bg-[#7c6cf0]/[0.03] py-4 text-sm text-[#7c6cf0]/60 hover:border-[#7c6cf0]/30 hover:text-[#7c6cf0]/80 active:scale-[0.99] transition-all disabled:opacity-50"
                   >
-                    Connect wallet to register products
+                    Connect wallet to register items
                   </button>
                 )}
               </div>
@@ -363,13 +375,13 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
             {/* Update */}
             {activeTab === "update" && (
               <div className="space-y-5">
-                <MethodSignature name="update_status" params="(product_id: String, new_status: String)" color="#fbbf24" />
-                <Input label="Product ID" value={updateId} onChange={(e) => setUpdateId(e.target.value)} placeholder="e.g. PROD-001" />
+                <MethodSignature name="update_status" params="(id: u32, new_status: ItemStatus)" color="#fbbf24" />
+                <Input label="Item ID (number)" value={updateId} onChange={(e) => setUpdateId(e.target.value)} placeholder="e.g. 1" type="number" />
 
                 <div className="space-y-2">
                   <label className="block text-[11px] font-medium uppercase tracking-wider text-white/30">New Status</label>
-                  <div className="flex gap-2">
-                    {(["Shipped", "Delivered"] as const).map((s) => {
+                  <div className="flex gap-2 flex-wrap">
+                    {(["Manufactured", "InTransit", "Delivered"] as const).map((s) => {
                       const cfg = STATUS_CONFIG[s];
                       const active = updateStatusVal === s;
                       return (
@@ -388,14 +400,6 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
                         </button>
                       );
                     })}
-                  </div>
-                  <div className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-px transition-all focus-within:border-[#fbbf24]/30 focus-within:shadow-[0_0_20px_rgba(251,191,36,0.08)]">
-                    <input
-                      value={updateStatusVal}
-                      onChange={(e) => setUpdateStatusVal(e.target.value)}
-                      placeholder="Or type a custom status..."
-                      className="w-full rounded-[11px] bg-transparent px-4 py-3 font-mono text-sm text-white/90 placeholder:text-white/15 outline-none"
-                    />
                   </div>
                 </div>
 
@@ -418,9 +422,9 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
           {/* Footer */}
           <div className="border-t border-white/[0.04] px-6 py-3 flex items-center justify-between">
-            <p className="text-[10px] text-white/15">Supply Chain Tracker &middot; Soroban</p>
+            <p className="text-[10px] text-white/15">Item Tracker &middot; Soroban</p>
             <div className="flex items-center gap-2">
-              {["Created", "Shipped", "Delivered"].map((s, i) => (
+              {["Manufactured", "InTransit", "Delivered"].map((s, i) => (
                 <span key={s} className="flex items-center gap-1.5">
                   <span className={cn("h-1 w-1 rounded-full", STATUS_CONFIG[s]?.dot ?? "bg-white/20")} />
                   <span className="font-mono text-[9px] text-white/15">{s}</span>
